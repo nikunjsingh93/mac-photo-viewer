@@ -157,30 +157,8 @@ final class ViewerModel: ObservableObject {
     func loadFolderInBackground(_ dir: URL, selectedFile: URL? = nil) {
         print("Loading folder in background: \(dir.path)")
         
-        // Try to request folder access using NSOpenPanel
-        DispatchQueue.main.async {
-            let panel = NSOpenPanel()
-            panel.allowsMultipleSelection = false
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.directoryURL = dir
-            panel.message = "Glass Photos needs access to the folder containing your image to enable navigation between photos."
-            panel.prompt = "Grant Access"
-            
-            if panel.runModal() == .OK, let folderURL = panel.url {
-                print("Folder access granted: \(folderURL.path)")
-                self.loadFolderWithAccess(folderURL, selectedFile: selectedFile)
-            } else {
-                print("Folder access denied - keeping single file view")
-            }
-        }
-    }
-    
-    func loadFolderWithAccess(_ dir: URL, selectedFile: URL? = nil) {
-        print("Loading folder with access: \(dir.path)")
-        
+        // Direct folder access without sandboxing
         DispatchQueue.global(qos: .utility).async {
-            // Use contentsOfDirectory instead of enumerator to only get immediate folder contents
             do {
                 let contents = try FileManager.default.contentsOfDirectory(
                     at: dir,
@@ -216,6 +194,8 @@ final class ViewerModel: ObservableObject {
             }
         }
     }
+    
+
 
     // Navigation
     func show(_ i: Int) {
