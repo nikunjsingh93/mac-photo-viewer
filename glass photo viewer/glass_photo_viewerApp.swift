@@ -35,18 +35,6 @@ struct PhotoViewerApp: App {
             CommandGroup(after: .newItem) {
                 Button("Open Folder…") { vm.pickFolder() }
                     .keyboardShortcut("o", modifiers: .command)
-                
-                Button("Open Recent") {
-                    vm.showRecentFolders()
-                }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-                
-                Divider()
-                
-                Button("Open Pictures Folder") {
-                    vm.openPicturesFolder()
-                }
-                .keyboardShortcut("p", modifiers: [.command, .shift])
             }
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "file"))
@@ -57,17 +45,11 @@ final class ViewerModel: ObservableObject {
     @Published var files: [URL] = []
     @Published var index = 0
     @Published var fitToWindow = true
-    @Published var recentFolders: [URL] = []
     @Published var isLoading = false
     
     private var keyMonitor: Any?
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
     private let cache = NSCache<NSURL, NSImage>()
-    private let maxRecentFolders = 10
-    
-    init() {
-        loadRecentFolders()
-    }
     
     // Handle files opened with the app
     func handleOpenedFiles(_ urls: [URL]) {
@@ -106,62 +88,7 @@ final class ViewerModel: ObservableObject {
         return allowed.contains(ext)
     }
     
-    // Open Pictures folder by default
-    func openPicturesFolder() {
-        let picturesURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Pictures")
-        loadFolder(picturesURL)
-    }
-    
-    // Recent folders functionality
-    func addToRecentFolders(_ url: URL) {
-        recentFolders.removeAll { $0 == url }
-        recentFolders.insert(url, at: 0)
-        if recentFolders.count > maxRecentFolders {
-            recentFolders = Array(recentFolders.prefix(maxRecentFolders))
-        }
-        saveRecentFolders()
-    }
-    
-    func showRecentFolders() {
-        let alert = NSAlert()
-        alert.messageText = "Recent Folders"
-        alert.informativeText = "Select a folder to open:"
-        
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 300, height: 25))
-        popup.addItem(withTitle: "Choose...")
-        
-        for folder in recentFolders {
-            popup.addItem(withTitle: folder.lastPathComponent)
-            popup.lastItem?.representedObject = folder
-        }
-        
-        alert.accessoryView = popup
-        alert.addButton(withTitle: "Open")
-        alert.addButton(withTitle: "Cancel")
-        
-        if alert.runModal() == .alertFirstButtonReturn {
-            if let selectedItem = popup.selectedItem,
-               let folderURL = selectedItem.representedObject as? URL {
-                loadFolder(folderURL)
-            } else if popup.indexOfSelectedItem == 0 {
-                pickFolder()
-            }
-        }
-    }
-    
-    private func loadRecentFolders() {
-        if let data = UserDefaults.standard.data(forKey: "RecentFolders"),
-           let urls = try? JSONDecoder().decode([URL].self, from: data) {
-            recentFolders = urls
-        }
-    }
-    
-    private func saveRecentFolders() {
-        if let data = try? JSONEncoder().encode(recentFolders) {
-            UserDefaults.standard.set(data, forKey: "RecentFolders")
-        }
-    }
+
 
     // Folder picking
     func pickFolder() {
@@ -172,7 +99,6 @@ final class ViewerModel: ObservableObject {
         if panel.runModal() == .OK, let url = panel.url { 
             print("Selected folder: \(url.path)")
             loadFolder(url)
-            addToRecentFolders(url)
         } else {
             print("No folder selected or cancelled")
         }
@@ -286,21 +212,9 @@ struct ContentView: View {
                     Text("Glass Photo Viewer").font(.largeTitle).fontWeight(.light)
                     Text("Welcome to your photo viewer!").font(.title3).foregroundStyle(.secondary)
                     
-                    VStack(spacing: 12) {
-                        Button("Open Pictures Folder") { vm.openPicturesFolder() }
-                            .keyboardShortcut("p", modifiers: [.command, .shift])
-                            .buttonStyle(.borderedProminent)
-                        
-                        Button("Open Folder…") { vm.pickFolder() }
-                            .keyboardShortcut("o", modifiers: .command)
-                            .buttonStyle(.bordered)
-                        
-                        if !vm.recentFolders.isEmpty {
-                            Button("Open Recent") { vm.showRecentFolders() }
-                                .keyboardShortcut("r", modifiers: [.command, .shift])
-                                .buttonStyle(.bordered)
-                        }
-                    }
+                    Button("Open Folder…") { vm.pickFolder() }
+                        .keyboardShortcut("o", modifiers: .command)
+                        .buttonStyle(.borderedProminent)
                 }
                 .frame(maxWidth: 400)
                 .padding(40)
