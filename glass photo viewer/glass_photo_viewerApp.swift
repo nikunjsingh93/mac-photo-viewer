@@ -275,7 +275,18 @@ struct Viewer: View {
     @State private var lastOffset: CGSize = .zero
     
     var body: some View {
-        ZStack {
+        VStack(spacing: 0) {
+            // Top header (only visible when not in fullscreen)
+            if !isFullScreen {
+                TopHeader(
+                    imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
+                    onFullScreen: {
+                        isFullScreen = true
+                        vm.toggleFullScreen()
+                    }
+                )
+            }
+            
             // Main image view
             GeometryReader { geo in
                 if let url = vm.files[safe: vm.index], let nsimg = vm.image(for: url) {
@@ -409,35 +420,18 @@ struct Viewer: View {
                 }
             }
             
-            // Top header (only visible when not in fullscreen)
-            if !isFullScreen {
-                VStack {
-                    TopHeader(
-                        imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
-                        onFullScreen: {
-                            isFullScreen = true
-                            vm.toggleFullScreen()
-                        }
-                    )
-                    Spacer()
-                }
-            }
-            
             // Zoom indicator (only show when zoomed in)
             if scale > 1.0 {
-                VStack {
+                HStack {
                     Spacer()
-                    HStack {
-                        Spacer()
-                        Text("\(Int(scale * 100))%")
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(8)
-                            .padding(.trailing, 16)
-                            .padding(.bottom, 16)
-                    }
+                    Text("\(Int(scale * 100))%")
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 16)
                 }
             }
         }
@@ -485,7 +479,7 @@ struct TopHeader: View {
                 .font(.headline)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .foregroundStyle(.primary)
+                .foregroundStyle(.white)
             
             Spacer()
             
@@ -493,14 +487,14 @@ struct TopHeader: View {
             Button(action: onFullScreen) {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                     .font(.title2)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
             .help("Enter Full Screen")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
+        .background(Color.black)
         .overlay(
             Rectangle()
                 .frame(height: 1)
