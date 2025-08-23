@@ -152,13 +152,35 @@ final class ViewerModel: ObservableObject {
     func loadFolderInBackground(_ dir: URL, selectedFile: URL? = nil) {
         print("Loading folder in background: \(dir.path)")
         
+        // Try to request folder access using NSOpenPanel
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.allowsMultipleSelection = false
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.directoryURL = dir
+            panel.message = "Glass Photos needs access to the folder containing your image to enable navigation between photos."
+            panel.prompt = "Grant Access"
+            
+            if panel.runModal() == .OK, let folderURL = panel.url {
+                print("Folder access granted: \(folderURL.path)")
+                self.loadFolderWithAccess(folderURL, selectedFile: selectedFile)
+            } else {
+                print("Folder access denied - keeping single file view")
+            }
+        }
+    }
+    
+    func loadFolderWithAccess(_ dir: URL, selectedFile: URL? = nil) {
+        print("Loading folder with access: \(dir.path)")
+        
         DispatchQueue.global(qos: .utility).async {
             guard let e = FileManager.default.enumerator(
                 at: dir,
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants]
             ) else { 
-                print("Failed to enumerate directory in background")
+                print("Failed to enumerate directory even with access")
                 return 
             }
 
@@ -169,19 +191,16 @@ final class ViewerModel: ObservableObject {
             }
             imgs.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
 
-            print("Found \(imgs.count) images in background folder")
+            print("Found \(imgs.count) images in folder")
             
             DispatchQueue.main.async {
-                // Only update if we don't have files loaded yet or if we're loading a folder
-                if self.files.isEmpty || selectedFile == nil {
+                if !imgs.isEmpty, let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
                     self.files = imgs
-                    if let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
-                        self.index = fileIndex
-                    } else {
-                        self.index = 0
-                    }
+                    self.index = fileIndex
                     self.preloadNeighbors()
-                    print("Background folder loaded successfully, files count: \(self.files.count)")
+                    print("Folder loaded successfully, files count: \(self.files.count), current index: \(self.index)")
+                } else {
+                    print("Selected file not found in folder or no images found")
                 }
             }
         }
@@ -300,9 +319,15 @@ struct ContentView: View {
                     Text("GLASS PHOTOS").font(.largeTitle).fontWeight(.light)
                     Text("Welcome to your photo viewer!").font(.title3).foregroundStyle(.secondary)
                     
-                    Button("Open Folder…") { vm.pickFolder() }
-                        .keyboardShortcut("o", modifiers: .command)
-                        .buttonStyle(.borderedProminent)
+                    VStack(spacing: 12) {
+                        Button("Open Folder…") { vm.pickFolder() }
+                            .keyboardShortcut("o", modifiers: .command)
+                            .buttonStyle(.borderedProminent)
+                        
+                        Text("Or drag and drop images here")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: 400)
                 .padding(40)
@@ -357,6 +382,8 @@ struct Viewer: View {
             if !isFullScreen {
                 TopHeader(
                     imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
+                    currentIndex: vm.index,
+                    totalCount: vm.files.count,
                     onFullScreen: {
                         isFullScreen = true
                         vm.toggleFullScreen()
@@ -547,16 +574,26 @@ struct Viewer: View {
 
 struct TopHeader: View {
     let imageName: String
+    let currentIndex: Int
+    let totalCount: Int
     let onFullScreen: () -> Void
     
     var body: some View {
         HStack {
-            // Image name on the left
-            Text(imageName)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.white)
+            // Image name and counter on the left
+            HStack(spacing: 8) {
+                Text(imageName)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(.white)
+                
+                if totalCount > 1 {
+                    Text("(\(currentIndex + 1)/\(totalCount))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
             
             Spacer()
             
