@@ -1,0 +1,59 @@
+{
+	CFBundleIdentifier = "com.glassphotoviewer.app";
+	CFBundleName = "Glass Photo Viewer";
+	CFBundleDisplayName = "Glass Photo Viewer";
+	CFBundleVersion = "1.0";
+	CFBundleShortVersionString = "1.0";
+	LSMinimumSystemVersion = "13.0";
+	NSHighResolutionCapable = true;
+	CFBundleDocumentTypes = (
+		{
+			CFBundleTypeExtensions = (
+				jpg,
+				jpeg,
+				png,
+				webp,
+				heic,
+				heif,
+				tiff,
+				gif,
+				bmp,
+				dng,
+				nef,
+				cr2,
+				arw,
+				raf
+			);
+			CFBundleTypeName = "Image File";
+			CFBundleTypeRole = "Viewer";
+			LSHandlerRank = "Owner";
+		}
+	);
+	UTExportedTypeDeclarations = (
+		{
+			UTTypeConformsTo = (
+				"public.image"
+			);
+			UTTypeDescription = "Image File";
+			UTTypeIdentifier = "com.glassphotoviewer.image";
+			UTTypeTagSpecification = {
+				"public.filename-extension" = (
+					jpg,
+					jpeg,
+					png,
+					webp,
+					heic,
+					heif,
+					tiff,
+					gif,
+					bmp,
+					dng,
+					nef,
+					cr2,
+					arw,
+					raf
+				);
+			};
+		}
+	);
+}
