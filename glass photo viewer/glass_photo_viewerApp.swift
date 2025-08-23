@@ -119,33 +119,38 @@ final class ViewerModel: ObservableObject {
         isLoading = true
         
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let e = FileManager.default.enumerator(
-                at: dir,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else { 
-                print("Failed to enumerate directory")
+            do {
+                let contents = try FileManager.default.contentsOfDirectory(
+                    at: dir,
+                    includingPropertiesForKeys: [.isRegularFileKey],
+                    options: [.skipsHiddenFiles]
+                )
+                
+                var imgs: [URL] = []
+                for url in contents {
+                    // Check if it's a regular file (not a directory)
+                    let resourceValues = try url.resourceValues(forKeys: [.isRegularFileKey])
+                    if resourceValues.isRegularFile == true {
+                        let ext = url.pathExtension.lowercased()
+                        if self.allowed.contains(ext) { imgs.append(url) }
+                    }
+                }
+                imgs.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+
+                print("Found \(imgs.count) images in folder (excluding subdirectories)")
+                
+                DispatchQueue.main.async {
+                    self.files = imgs
+                    self.index = 0
+                    self.isLoading = false
+                    self.preloadNeighbors()
+                    print("Folder loaded successfully, files count: \(self.files.count)")
+                }
+            } catch {
+                print("Failed to enumerate directory: \(error)")
                 DispatchQueue.main.async {
                     self.isLoading = false
                 }
-                return 
-            }
-
-            var imgs: [URL] = []
-            for case let u as URL in e {
-                let ext = u.pathExtension.lowercased()
-                if self.allowed.contains(ext) { imgs.append(u) }
-            }
-            imgs.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-
-            print("Found \(imgs.count) images in folder")
-            
-            DispatchQueue.main.async {
-                self.files = imgs
-                self.index = 0
-                self.isLoading = false
-                self.preloadNeighbors()
-                print("Folder loaded successfully, files count: \(self.files.count)")
             }
         }
     }
@@ -176,33 +181,39 @@ final class ViewerModel: ObservableObject {
         print("Loading folder with access: \(dir.path)")
         
         DispatchQueue.global(qos: .utility).async {
-            guard let e = FileManager.default.enumerator(
-                at: dir,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else { 
-                print("Failed to enumerate directory even with access")
-                return 
-            }
-
-            var imgs: [URL] = []
-            for case let u as URL in e {
-                let ext = u.pathExtension.lowercased()
-                if self.allowed.contains(ext) { imgs.append(u) }
-            }
-            imgs.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-
-            print("Found \(imgs.count) images in folder")
-            
-            DispatchQueue.main.async {
-                if !imgs.isEmpty, let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
-                    self.files = imgs
-                    self.index = fileIndex
-                    self.preloadNeighbors()
-                    print("Folder loaded successfully, files count: \(self.files.count), current index: \(self.index)")
-                } else {
-                    print("Selected file not found in folder or no images found")
+            // Use contentsOfDirectory instead of enumerator to only get immediate folder contents
+            do {
+                let contents = try FileManager.default.contentsOfDirectory(
+                    at: dir,
+                    includingPropertiesForKeys: [.isRegularFileKey],
+                    options: [.skipsHiddenFiles]
+                )
+                
+                var imgs: [URL] = []
+                for url in contents {
+                    // Check if it's a regular file (not a directory)
+                    let resourceValues = try url.resourceValues(forKeys: [.isRegularFileKey])
+                    if resourceValues.isRegularFile == true {
+                        let ext = url.pathExtension.lowercased()
+                        if self.allowed.contains(ext) { imgs.append(url) }
+                    }
                 }
+                imgs.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+
+                print("Found \(imgs.count) images in folder (excluding subdirectories)")
+                
+                DispatchQueue.main.async {
+                    if !imgs.isEmpty, let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
+                        self.files = imgs
+                        self.index = fileIndex
+                        self.preloadNeighbors()
+                        print("Folder loaded successfully, files count: \(self.files.count), current index: \(self.index)")
+                    } else {
+                        print("Selected file not found in folder or no images found")
+                    }
+                }
+            } catch {
+                print("Failed to enumerate directory: \(error)")
             }
         }
     }
@@ -342,6 +353,7 @@ struct Viewer: View {
                                 .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
                                 .scaleEffect(scale)
                                 .offset(offset)
+                                .clipped() // Prevent image from extending beyond bounds
                                 .gesture(
                                     SimultaneousGesture(
                                         MagnificationGesture()
@@ -402,6 +414,7 @@ struct Viewer: View {
                                 imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
                                     .scaleEffect(scale)
                                     .offset(offset)
+                                    .clipped() // Prevent image from extending beyond bounds
                                     .gesture(
                                         SimultaneousGesture(
                                             MagnificationGesture()
@@ -577,7 +590,7 @@ struct HUD: View {
 
 // Helpers
 extension Collection { subscript(safe i: Index) -> Element? { indices.contains(i) ? self[i] : nil } }
-
+x
 extension CGFloat {
     func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
         return Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
