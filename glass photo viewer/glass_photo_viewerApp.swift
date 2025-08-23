@@ -31,10 +31,16 @@ struct PhotoViewerApp: App {
         .windowStyle(.titleBar)
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+        .handlesExternalEvents(matching: Set(arrayLiteral: "file"))
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Open Folder…") { vm.pickFolder() }
                     .keyboardShortcut("o", modifiers: .command)
+            }
+            
+            CommandGroup(after: .windowSize) {
+                Button("Toggle Full Screen") { vm.toggleFullScreen() }
+                    .keyboardShortcut("f", modifiers: [])
             }
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "file"))
@@ -149,7 +155,12 @@ final class ViewerModel: ObservableObject {
     func next() { show(index + 1) }
     func prev() { show(index - 1) }
     func toggleFit() { fitToWindow.toggle() }
-    func toggleFullScreen() { NSApp.keyWindow?.toggleFullScreen(nil) }
+    func toggleFullScreen() { 
+        NSApp.keyWindow?.toggleFullScreen(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NotificationCenter.default.post(name: .fullScreenChanged, object: nil)
+        }
+    }
 
     // Image cache
     func image(for url: URL) -> NSImage? {
@@ -257,34 +268,92 @@ struct ContentView: View {
 
 struct Viewer: View {
     @EnvironmentObject var vm: ViewerModel
+    @State private var isFullScreen = false
+    
     var body: some View {
-        GeometryReader { geo in
-            if let url = vm.files[safe: vm.index], let nsimg = vm.image(for: url) {
-                let imageView = Image(nsImage: nsimg).interpolation(.high).antialiased(true)
-                Group {
-                    if vm.fitToWindow {
-                        imageView.resizable().scaledToFit()
-                            .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
-                    } else {
-                        ScrollView([.horizontal, .vertical]) {
-                            imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
+        ZStack {
+            // Main image view
+            GeometryReader { geo in
+                if let url = vm.files[safe: vm.index], let nsimg = vm.image(for: url) {
+                    let imageView = Image(nsImage: nsimg).interpolation(.high).antialiased(true)
+                    Group {
+                        if vm.fitToWindow {
+                            imageView.resizable().scaledToFit()
+                                .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
+                        } else {
+                            ScrollView([.horizontal, .vertical]) {
+                                imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) { 
+                        isFullScreen.toggle()
+                        vm.toggleFullScreen()
+                    }
+                    .gesture(DragGesture(minimumDistance: 20).onEnded { value in
+                        if value.translation.width < 0 { vm.next() }
+                        if value.translation.width > 0 { vm.prev() }
+                    })
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .contentShape(Rectangle())
-                .onTapGesture(count: 2) { vm.toggleFullScreen() } // double-click full screen
-                .overlay(alignment: .bottom) {
-                    HUD(url: url, index: vm.index + 1, total: vm.files.count)
+            }
+            
+            // Top header (only visible when not in fullscreen)
+            if !isFullScreen {
+                VStack {
+                    TopHeader(
+                        imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
+                        onFullScreen: {
+                            isFullScreen = true
+                            vm.toggleFullScreen()
+                        }
+                    )
+                    Spacer()
                 }
-                .gesture(DragGesture(minimumDistance: 20).onEnded { value in
-                    if value.translation.width < 0 { vm.next() }
-                    if value.translation.width > 0 { vm.prev() }
-                })
-            } else {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .fullScreenChanged)) { _ in
+            isFullScreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) == true
+        }
+    }
+}
+
+struct TopHeader: View {
+    let imageName: String
+    let onFullScreen: () -> Void
+    
+    var body: some View {
+        HStack {
+            // Image name on the left
+            Text(imageName)
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
+            // Fullscreen button on the right
+            Button(action: onFullScreen) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.title2)
+                    .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+            .help("Enter Full Screen")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundStyle(.separator),
+            alignment: .bottom
+        )
     }
 }
 
@@ -349,6 +418,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension Notification.Name {
     static let filesOpened = Notification.Name("filesOpened")
+    static let fullScreenChanged = Notification.Name("fullScreenChanged")
 }
 
 // ---- Previews (inject env object!) ----
