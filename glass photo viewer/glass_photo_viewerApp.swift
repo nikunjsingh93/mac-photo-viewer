@@ -269,6 +269,10 @@ struct ContentView: View {
 struct Viewer: View {
     @EnvironmentObject var vm: ViewerModel
     @State private var isFullScreen = false
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
     
     var body: some View {
         ZStack {
@@ -280,21 +284,125 @@ struct Viewer: View {
                         if vm.fitToWindow {
                             imageView.resizable().scaledToFit()
                                 .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
+                                .scaleEffect(scale)
+                                .offset(offset)
+                                .gesture(
+                                    SimultaneousGesture(
+                                        MagnificationGesture()
+                                            .onChanged { value in
+                                                let delta = value / lastScale
+                                                lastScale = value
+                                                scale = min(max(scale * delta, 0.5), 5.0)
+                                            }
+                                            .onEnded { _ in
+                                                lastScale = 1.0
+                                                // Snap to bounds if zoomed out too much
+                                                if scale < 1.0 {
+                                                    withAnimation(.easeOut(duration: 0.3)) {
+                                                        scale = 1.0
+                                                        offset = .zero
+                                                    }
+                                                }
+                                            },
+                                        DragGesture()
+                                            .onChanged { value in
+                                                if scale > 1.0 {
+                                                    offset = CGSize(
+                                                        width: lastOffset.width + value.translation.width,
+                                                        height: lastOffset.height + value.translation.height
+                                                    )
+                                                }
+                                            }
+                                            .onEnded { _ in
+                                                lastOffset = offset
+                                                // Constrain panning to image bounds
+                                                constrainOffsetToBounds(imageSize: nsimg.size, viewSize: geo.size)
+                                            }
+                                    )
+                                )
+                                .onTapGesture(count: 2) { 
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        if scale > 1.0 {
+                                            scale = 1.0
+                                            offset = .zero
+                                            lastOffset = .zero
+                                        } else {
+                                            scale = 2.0
+                                        }
+                                    }
+                                }
+                                .onTapGesture(count: 1) {
+                                    // Single tap to reset zoom when zoomed in
+                                    if scale > 1.0 {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            scale = 1.0
+                                            offset = .zero
+                                            lastOffset = .zero
+                                        }
+                                    }
+                                }
                         } else {
                             ScrollView([.horizontal, .vertical]) {
                                 imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
+                                    .scaleEffect(scale)
+                                    .offset(offset)
+                                    .gesture(
+                                        SimultaneousGesture(
+                                            MagnificationGesture()
+                                                .onChanged { value in
+                                                    let delta = value / lastScale
+                                                    lastScale = value
+                                                    scale = min(max(scale * delta, 0.5), 5.0)
+                                                }
+                                                .onEnded { _ in
+                                                    lastScale = 1.0
+                                                },
+                                            DragGesture()
+                                                .onChanged { value in
+                                                    if scale > 1.0 {
+                                                        offset = CGSize(
+                                                            width: lastOffset.width + value.translation.width,
+                                                            height: lastOffset.height + value.translation.height
+                                                        )
+                                                    }
+                                                }
+                                                .onEnded { _ in
+                                                    lastOffset = offset
+                                                }
+                                        )
+                                    )
+                                    .onTapGesture(count: 2) { 
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            if scale > 1.0 {
+                                                scale = 1.0
+                                                offset = .zero
+                                                lastOffset = .zero
+                                            } else {
+                                                scale = 2.0
+                                            }
+                                        }
+                                    }
+                                    .onTapGesture(count: 1) {
+                                        // Single tap to reset zoom when zoomed in
+                                        if scale > 1.0 {
+                                            withAnimation(.easeInOut(duration: 0.3)) {
+                                                scale = 1.0
+                                                offset = .zero
+                                                lastOffset = .zero
+                                            }
+                                        }
+                                    }
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
                     .contentShape(Rectangle())
-                    .onTapGesture(count: 2) { 
-                        isFullScreen.toggle()
-                        vm.toggleFullScreen()
-                    }
                     .gesture(DragGesture(minimumDistance: 20).onEnded { value in
-                        if value.translation.width < 0 { vm.next() }
-                        if value.translation.width > 0 { vm.prev() }
+                        // Only handle navigation gestures when not zoomed in
+                        if scale <= 1.0 {
+                            if value.translation.width < 0 { vm.next() }
+                            if value.translation.width > 0 { vm.prev() }
+                        }
                     })
                 } else {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -314,9 +422,54 @@ struct Viewer: View {
                     Spacer()
                 }
             }
+            
+            // Zoom indicator (only show when zoomed in)
+            if scale > 1.0 {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Text("\(Int(scale * 100))%")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(8)
+                            .padding(.trailing, 16)
+                            .padding(.bottom, 16)
+                    }
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .fullScreenChanged)) { _ in
             isFullScreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) == true
+        }
+        .onChange(of: vm.index) { _ in
+            // Reset zoom when changing images
+            withAnimation(.easeOut(duration: 0.2)) {
+                scale = 1.0
+                offset = .zero
+                lastOffset = .zero
+                lastScale = 1.0
+            }
+        }
+    }
+    
+    private func constrainOffsetToBounds(imageSize: NSSize, viewSize: CGSize) {
+        let scaledImageSize = CGSize(
+            width: imageSize.width * scale,
+            height: imageSize.height * scale
+        )
+        
+        let maxOffsetX = max(0, (scaledImageSize.width - viewSize.width) / 2)
+        let maxOffsetY = max(0, (scaledImageSize.height - viewSize.height) / 2)
+        
+        withAnimation(.easeOut(duration: 0.3)) {
+            offset = CGSize(
+                width: offset.width.clamped(to: -maxOffsetX...maxOffsetX),
+                height: offset.height.clamped(to: -maxOffsetY...maxOffsetY)
+            )
+            lastOffset = offset
         }
     }
 }
@@ -375,6 +528,12 @@ struct HUD: View {
 
 // Helpers
 extension Collection { subscript(safe i: Index) -> Element? { indices.contains(i) ? self[i] : nil } }
+
+extension CGFloat {
+    func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
+        return Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
 
 // Extension to handle file opening
 extension NSApplication {
