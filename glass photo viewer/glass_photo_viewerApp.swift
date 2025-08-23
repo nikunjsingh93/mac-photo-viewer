@@ -212,7 +212,7 @@ struct ContentView: View {
     @EnvironmentObject var vm: ViewerModel
     var body: some View {
         ZStack {
-            Color(nsColor: .windowBackgroundColor).ignoresSafeArea()
+            Color.black.ignoresSafeArea()
             
             if vm.files.isEmpty {
                 VStack(spacing: 20) {
