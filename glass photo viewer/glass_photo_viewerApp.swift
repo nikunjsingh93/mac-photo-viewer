@@ -16,6 +16,7 @@ struct PhotoViewerApp: App {
     var body: some Scene {
         WindowGroup("Glass Photos") {
             ContentView()
+                .onOpenURL { url in vm.handleOpen(urls: [url]) }
                 .environmentObject(vm)
                 .onAppear {
                     print("App window appeared")
@@ -48,6 +49,7 @@ struct PhotoViewerApp: App {
 }
 
 final class ViewerModel: ObservableObject {
+    
     @Published var files: [URL] = []
     @Published var index = 0
     @Published var fitToWindow = true
@@ -71,16 +73,18 @@ final class ViewerModel: ObservableObject {
         }
         
         if !imageFiles.isEmpty {
-            // If individual files were opened, load their containing folder
+            // If individual files were opened, show them immediately
+            DispatchQueue.main.async {
+                self.files = imageFiles
+                self.index = 0
+                self.isLoading = false
+                print("Loaded \(imageFiles.count) individual image files")
+            }
+            
+            // Also load the containing folder in the background for navigation
             let folderURLs = Set(imageFiles.map { $0.deletingLastPathComponent() })
             if let firstFolder = folderURLs.first {
-                loadFolder(firstFolder)
-                // Find the index of the first opened file
-                if let firstFile = imageFiles.first {
-                    if let fileIndex = files.firstIndex(of: firstFile) {
-                        index = fileIndex
-                    }
-                }
+                loadFolderInBackground(firstFolder, selectedFile: imageFiles.first)
             }
         } else if !folders.isEmpty {
             // If folders were opened, load the first one
@@ -142,6 +146,44 @@ final class ViewerModel: ObservableObject {
                 self.isLoading = false
                 self.preloadNeighbors()
                 print("Folder loaded successfully, files count: \(self.files.count)")
+            }
+        }
+    }
+    
+    func loadFolderInBackground(_ dir: URL, selectedFile: URL? = nil) {
+        print("Loading folder in background: \(dir.path)")
+        
+        DispatchQueue.global(qos: .utility).async {
+            guard let e = FileManager.default.enumerator(
+                at: dir,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else { 
+                print("Failed to enumerate directory in background")
+                return 
+            }
+
+            var imgs: [URL] = []
+            for case let u as URL in e {
+                let ext = u.pathExtension.lowercased()
+                if self.allowed.contains(ext) { imgs.append(u) }
+            }
+            imgs.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+
+            print("Found \(imgs.count) images in background folder")
+            
+            DispatchQueue.main.async {
+                // Only update if we don't have files loaded yet or if we're loading a folder
+                if self.files.isEmpty || selectedFile == nil {
+                    self.files = imgs
+                    if let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
+                        self.index = fileIndex
+                    } else {
+                        self.index = 0
+                    }
+                    self.preloadNeighbors()
+                    print("Background folder loaded successfully, files count: \(self.files.count)")
+                }
             }
         }
     }
@@ -208,63 +250,45 @@ final class ViewerModel: ObservableObject {
     }
 }
 
-struct ContentView: View {
-    @EnvironmentObject var vm: ViewerModel
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            if vm.files.isEmpty {
-                VStack(spacing: 20) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 60))
-                        .foregroundStyle(.blue)
-                    
-                    Text("GLASS PHOTOS").font(.largeTitle).fontWeight(.light)
-                    Text("Welcome to your photo viewer!").font(.title3).foregroundStyle(.secondary)
-                    
-                    Button("Open Folder…") { vm.pickFolder() }
-                        .keyboardShortcut("o", modifiers: .command)
-                        .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: 400)
-                .padding(40)
-            } else if vm.isLoading {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                    Text("Loading photos...")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                Viewer()
-            }
+
+
+    
+func handleOpen(urls: [URL]) {
+    guard let first = urls.first else { return }
+
+    // Show the selected file immediately (even if folder enumeration fails)
+    var isDir: ObjCBool = false
+    FileManager.default.fileExists(atPath: first.path, isDirectory: &isDir)
+    if !isDir.boolValue && FileManager.default.isReadableFile(atPath: first.path) {
+        DispatchQueue.main.async {
+            self.files = [first]
+            self.index = 0
+            self.isLoading = false
+            print("Opened single file: \(first.lastPathComponent)")
         }
-        .onAppear {
-            print("ContentView appeared")
-            vm.startKeyMonitor()
-            
-            // Listen for files opened with the app
-            NotificationCenter.default.addObserver(
-                forName: .filesOpened,
-                object: nil,
-                queue: .main
-            ) { notification in
-                if let urls = notification.object as? [URL] {
-                    vm.handleOpenedFiles(urls)
-                }
-            }
+    }
+
+    // Try to load folder and focus the file
+    let folder = isDir.boolValue ? first : first.deletingLastPathComponent()
+
+    // Security-scoped access for sandboxed builds (no-op if not sandboxed)
+    var didStart = false
+    #if canImport(AppKit)
+    didStart = folder.startAccessingSecurityScopedResource()
+    #endif
+    defer {
+        if didStart {
+            folder.stopAccessingSecurityScopedResource()
         }
-        .onChange(of: vm.files.count) { count in
-            print("Files count changed to: \(count)")
-        }
-        .onChange(of: vm.isLoading) { loading in
-            print("Loading state changed to: \(loading)")
-        }
-        .onDisappear { vm.stopKeyMonitor() }
+    }
+
+    if isDir.boolValue {
+        loadFolder(folder)
+    } else {
+        loadFolderInBackground(folder, selectedFile: first)
     }
 }
+
 
 struct Viewer: View {
     @EnvironmentObject var vm: ViewerModel
