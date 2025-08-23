@@ -1,5 +1,5 @@
 {
-	CFBundleIdentifier = "com.glassphotoviewer.app";
+	CFBundleIdentifier = "com.glassphotos.app";
 	CFBundleName = "Glass Photos";
 	CFBundleDisplayName = "Glass Photos";
 	CFBundleVersion = "1.0";

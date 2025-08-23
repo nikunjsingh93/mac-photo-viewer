@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		DAE105752E595A1C0045AF6B /* glass photo viewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "glass photo viewer.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAE105752E595A1C0045AF6B /* Glass Photos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Glass Photos.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		DAE105772E595A1C0045AF6B /* glass photo viewer */ = {
+		DAE105772E595A1C0045AF6B /* Glass Photos */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "glass photo viewer";
+			path = "Glass Photos";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		DAE1056C2E595A1C0045AF6B = {
 			isa = PBXGroup;
 			children = (
-				DAE105772E595A1C0045AF6B /* glass photo viewer */,
+				DAE105772E595A1C0045AF6B /* Glass Photos */,
 				DAE105762E595A1C0045AF6B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +40,7 @@
 		DAE105762E595A1C0045AF6B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DAE105752E595A1C0045AF6B /* glass photo viewer.app */,
+				DAE105752E595A1C0045AF6B /* Glass Photos.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		DAE105742E595A1C0045AF6B /* glass photo viewer */ = {
+		DAE105742E595A1C0045AF6B /* Glass Photos */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DAE105812E595A1D0045AF6B /* Build configuration list for PBXNativeTarget "glass photo viewer" */;
+			buildConfigurationList = DAE105812E595A1D0045AF6B /* Build configuration list for PBXNativeTarget "Glass Photos" */;
 			buildPhases = (
 				DAE105712E595A1C0045AF6B /* Sources */,
 				DAE105722E595A1C0045AF6B /* Frameworks */,
@@ -61,13 +61,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				DAE105772E595A1C0045AF6B /* glass photo viewer */,
+				DAE105772E595A1C0045AF6B /* Glass Photos */,
 			);
-			name = "glass photo viewer";
+			name = "Glass Photos";
 			packageProductDependencies = (
 			);
-			productName = "glass photo viewer";
-			productReference = DAE105752E595A1C0045AF6B /* glass photo viewer.app */;
+			productName = "Glass Photos";
+			productReference = DAE105752E595A1C0045AF6B /* Glass Photos.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = DAE105702E595A1C0045AF6B /* Build configuration list for PBXProject "glass photo viewer" */;
+			buildConfigurationList = DAE105702E595A1C0045AF6B /* Build configuration list for PBXProject "Glass Photos" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				DAE105742E595A1C0045AF6B /* glass photo viewer */,
+				DAE105742E595A1C0045AF6B /* Glass Photos */,
 			);
 		};
 /* End PBXProject section */
@@ -247,13 +247,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "glass photo viewer/glass_photo_viewer.entitlements";
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "Glass Photos/glass_photo_viewer.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Glass Photos";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -273,12 +276,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "glass photo viewer/glass_photo_viewer.entitlements";
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "Glass Photos/glass_photo_viewer.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Glass Photos";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -305,7 +310,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DAE105812E595A1D0045AF6B /* Build configuration list for PBXNativeTarget "glass photo viewer" */ = {
+		DAE105812E595A1D0045AF6B /* Build configuration list for PBXNativeTarget "Glass Photos" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DAE105822E595A1D0045AF6B /* Debug */,
