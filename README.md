@@ -1,4 +1,4 @@
-<img src="Glass Photos/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Glass Photo Viewer Logo" width="64" height="64" align="left" style="margin-right: 16px;">
+<img src="Glass Photos/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Glass Photo Viewer Logo" width="32" height="32" align="left" style="margin-right: 16px;">
 
 # Glass Photo Viewer
 
