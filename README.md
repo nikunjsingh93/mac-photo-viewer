@@ -51,8 +51,13 @@ A beautiful, modern photo viewer for macOS with a focus on simplicity and perfor
 - Press F to enter/exit fullscreen mode
 
 ## Installation
-- Download the file from recent releases section
-- Drag the file/copy to Applications folder
+
+### Quick Download
+**[Download Glass Photo Viewer v1.0.0](Glass_Photo_Viewer-1.0.0.dmg)** - Drag to Applications folder to install
+
+### From GitHub Releases
+- Download the latest DMG from the [releases section](https://github.com/yourusername/glass-photo-viewer/releases)
+- Drag the app to Applications folder
 
 ## Development
 1. Clone the project
