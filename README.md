@@ -24,7 +24,6 @@ A beautiful, modern photo viewer for macOS with a focus on simplicity and perfor
   - `Cmd+O` - Open folder
 
 - **Mouse/Trackpad**:
-  - **Swipe left/right** - Navigate between photos
   - **Double-click** - Zoom In/Zoom Out
   - **Pinch** - Pinch to Zoom In/Zoom Out
   - **Drag and Pan** - Move inside the zoomed photo
