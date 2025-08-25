@@ -1,4 +1,4 @@
-# <img src="Glass Photos/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Glass Photo Viewer Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px;"> Glass Photo Viewer
+# <img src="Glass Photos/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Glass Photo Viewer Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px;"> Glass Photos Viewer
 
 A beautiful, modern photo viewer for macOS with a focus on simplicity and performance.
 
