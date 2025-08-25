@@ -263,41 +263,49 @@ final class ViewerModel: ObservableObject {
 
 
     
-func handleOpen(urls: [URL]) {
-    guard let first = urls.first else { return }
+    func handleOpen(urls: [URL]) {
+        guard let first = urls.first else { return }
+        
+        print("Handling open URLs: \(urls.map { $0.lastPathComponent })")
 
-    // Show the selected file immediately (even if folder enumeration fails)
-    var isDir: ObjCBool = false
-    FileManager.default.fileExists(atPath: first.path, isDirectory: &isDir)
-    if !isDir.boolValue && FileManager.default.isReadableFile(atPath: first.path) {
-        DispatchQueue.main.async {
-            self.files = [first]
-            self.index = 0
-            self.isLoading = false
-            print("Opened single file: \(first.lastPathComponent)")
+        // Show the selected file immediately (even if folder enumeration fails)
+        var isDir: ObjCBool = false
+        let fileExists = FileManager.default.fileExists(atPath: first.path, isDirectory: &isDir)
+        
+        if !fileExists {
+            print("File does not exist: \(first.path)")
+            return
+        }
+        
+        if !isDir.boolValue && FileManager.default.isReadableFile(atPath: first.path) {
+            DispatchQueue.main.async {
+                self.files = [first]
+                self.index = 0
+                self.isLoading = false
+                print("Opened single file: \(first.lastPathComponent)")
+            }
+        }
+
+        // Try to load folder and focus the file
+        let folder = isDir.boolValue ? first : first.deletingLastPathComponent()
+
+        // Security-scoped access for sandboxed builds (no-op if not sandboxed)
+        var didStart = false
+        #if canImport(AppKit)
+        didStart = folder.startAccessingSecurityScopedResource()
+        #endif
+        defer {
+            if didStart {
+                folder.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        if isDir.boolValue {
+            loadFolder(folder)
+        } else {
+            loadFolderInBackground(folder, selectedFile: first)
         }
     }
-
-    // Try to load folder and focus the file
-    let folder = isDir.boolValue ? first : first.deletingLastPathComponent()
-
-    // Security-scoped access for sandboxed builds (no-op if not sandboxed)
-    var didStart = false
-    #if canImport(AppKit)
-    didStart = folder.startAccessingSecurityScopedResource()
-    #endif
-    defer {
-        if didStart {
-            folder.stopAccessingSecurityScopedResource()
-        }
-    }
-
-    if isDir.boolValue {
-        loadFolder(folder)
-    } else {
-        loadFolderInBackground(folder, selectedFile: first)
-    }
-}
 
 
 struct Viewer: View {
@@ -590,6 +598,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("App delegate finished launching")
+        
+        // Register for file type associations
+        registerFileAssociations()
+        
         // Ensure the main window is visible
         DispatchQueue.main.async {
             if let window = NSApplication.shared.windows.first {
@@ -605,15 +617,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {
+        print("App delegate received URLs: \(urls.map { $0.lastPathComponent })")
         openedFileURLs = urls
         NotificationCenter.default.post(name: .filesOpened, object: urls)
     }
     
     func application(_ application: NSApplication, openFile filename: String) -> Bool {
+        print("App delegate received file: \(filename)")
         let url = URL(fileURLWithPath: filename)
         openedFileURLs = [url]
         NotificationCenter.default.post(name: .filesOpened, object: [url])
         return true
+    }
+    
+    func application(_ application: NSApplication, openFiles filenames: [String]) {
+        print("App delegate received files: \(filenames)")
+        let urls = filenames.map { URL(fileURLWithPath: $0) }
+        openedFileURLs = urls
+        NotificationCenter.default.post(name: .filesOpened, object: urls)
+    }
+    
+    private func registerFileAssociations() {
+        // Register common image file types
+        let imageExtensions = ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "heic", "heif", "webp"]
+        let bundleIdentifier = Bundle.main.bundleIdentifier ?? "com.glassphotoviewer.app"
+        
+        for ext in imageExtensions {
+            LSSetDefaultRoleHandlerForContentType(UTType(filenameExtension: ext) ?? UTType.data, .viewer, bundleIdentifier as CFString)
+        }
+        
+        print("Registered file associations for: \(imageExtensions)")
     }
 }
 
