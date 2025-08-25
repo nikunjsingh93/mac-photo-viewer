@@ -56,6 +56,7 @@ final class ViewerModel: ObservableObject {
     @Published var fitToWindow = true
     @Published var isLoading = false
     @Published var showInfoSidebar = false
+    @Published var isLoadingExif = false
     
     private var keyMonitor: Any?
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
@@ -208,7 +209,15 @@ final class ViewerModel: ObservableObject {
         guard !files.isEmpty else { return }
         index = (i % files.count + files.count) % files.count
         preloadNeighbors()
-        loadExifData()
+        preloadExifData()
+    }
+    
+    func toggleInfoSidebar() {
+        showInfoSidebar.toggle()
+        if showInfoSidebar {
+            // Load EXIF data when opening the sidebar
+            loadExifData()
+        }
     }
     func next() { show(index + 1) }
     func prev() { show(index - 1) }
@@ -224,13 +233,17 @@ final class ViewerModel: ObservableObject {
     func loadExifData() {
         guard !files.isEmpty, let currentURL = files[safe: index] else {
             currentExifData = [:]
+            isLoadingExif = false
             return
         }
+        
+        isLoadingExif = true
         
         DispatchQueue.global(qos: .userInitiated).async {
             let exifData = self.extractExifData(from: currentURL)
             DispatchQueue.main.async {
                 self.currentExifData = exifData
+                self.isLoadingExif = false
             }
         }
     }
@@ -336,6 +349,7 @@ final class ViewerModel: ObservableObject {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale.current
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
@@ -343,6 +357,7 @@ final class ViewerModel: ObservableObject {
     
     private func formatExifDate(_ dateString: String) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
         if let date = formatter.date(from: dateString) {
             return formatDate(date)
@@ -392,6 +407,21 @@ final class ViewerModel: ObservableObject {
         for delta in [-1, 1] {
             let j = (index + delta + files.count) % files.count
             _ = image(for: files[j])
+        }
+    }
+    
+    // Preload EXIF data for current image
+    private func preloadExifData() {
+        guard !files.isEmpty, let currentURL = files[safe: index] else { return }
+        
+        DispatchQueue.global(qos: .utility).async {
+            let exifData = self.extractExifData(from: currentURL)
+            DispatchQueue.main.async {
+                // Only update if we're still on the same image
+                if self.files[safe: self.index] == currentURL {
+                    self.currentExifData = exifData
+                }
+            }
         }
     }
 
@@ -564,7 +594,7 @@ struct Viewer: View {
                             isFullScreen = true
                             vm.toggleFullScreen()
                         },
-                        onInfoToggle: { vm.showInfoSidebar.toggle() },
+                        onInfoToggle: { vm.toggleInfoSidebar() },
                         onShare: { vm.shareCurrentImage() }
                     )
                 }
@@ -726,6 +756,7 @@ struct Viewer: View {
             if vm.showInfoSidebar {
                 InfoSidebar(
                     exifData: vm.currentExifData,
+                    isLoading: vm.isLoadingExif,
                     onClose: { vm.showInfoSidebar = false }
                 )
                 .frame(width: 300)
@@ -933,6 +964,7 @@ extension Notification.Name {
 
 struct InfoSidebar: View {
     let exifData: [String: Any]
+    let isLoading: Bool
     let onClose: () -> Void
     
     var body: some View {
@@ -966,7 +998,19 @@ struct InfoSidebar: View {
             // Content
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
-                    if exifData.isEmpty {
+                    if isLoading {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                                .foregroundStyle(.white)
+                            
+                            Text("Loading metadata...")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                    } else if exifData.isEmpty {
                         VStack(spacing: 12) {
                             Image(systemName: "photo")
                                 .font(.system(size: 40))
