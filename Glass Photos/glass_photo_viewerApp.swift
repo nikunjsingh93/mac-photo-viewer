@@ -63,7 +63,7 @@ final class ViewerModel: ObservableObject {
     private let cache = NSCache<NSURL, NSImage>()
     
     // EXIF data for current image
-    @Published var currentExifData: [String: Any] = [:]
+    @Published var currentExifData: [(String, Any)] = []
     
     // Handle files opened with the app
     func handleOpenedFiles(_ urls: [URL]) {
@@ -232,7 +232,7 @@ final class ViewerModel: ObservableObject {
     // EXIF Data handling
     func loadExifData() {
         guard !files.isEmpty, let currentURL = files[safe: index] else {
-            currentExifData = [:]
+            currentExifData = []
             isLoadingExif = false
             return
         }
@@ -248,21 +248,28 @@ final class ViewerModel: ObservableObject {
         }
     }
     
-    private func extractExifData(from url: URL) -> [String: Any] {
+    private func extractExifData(from url: URL) -> [(String, Any)] {
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-            return [:]
+            return []
         }
         
         guard let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any] else {
-            return [:]
+            return []
         }
         
-        var exifData: [String: Any] = [:]
+        var exifData: [(String, Any)] = []
         var creationDateString: String?
+        var modificationDateString: String?
+        
+        // Date Taken (first)
+        if let exif = properties["{Exif}"] as? [String: Any],
+           let dateTimeOriginal = exif["DateTimeOriginal"] as? String {
+            exifData.append(("Date Taken", formatExifDate(dateTimeOriginal)))
+        }
         
         // Basic file info
         if let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
-            exifData["File Size"] = formatFileSize(fileSize)
+            exifData.append(("File Size", formatFileSize(fileSize)))
         }
         
         if let creationDate = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate {
@@ -270,52 +277,48 @@ final class ViewerModel: ObservableObject {
         }
         
         if let modificationDate = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate {
-            exifData["Modified"] = formatDate(modificationDate)
+            modificationDateString = formatDate(modificationDate)
         }
         
         // Image dimensions
         if let width = properties["PixelWidth"] as? Int,
            let height = properties["PixelHeight"] as? Int {
-            exifData["Dimensions"] = "\(width) × \(height)"
+            exifData.append(("Dimensions", "\(width) × \(height)"))
         }
         
         // Color space
         if let colorSpace = properties["ColorSpace"] as? String {
-            exifData["Color Space"] = colorSpace
+            exifData.append(("Color Space", colorSpace))
         }
         
         // EXIF data
         if let exif = properties["{Exif}"] as? [String: Any] {
-            if let dateTimeOriginal = exif["DateTimeOriginal"] as? String {
-                exifData["Date Taken"] = formatExifDate(dateTimeOriginal)
-            }
-            
             if let exposureTime = exif["ExposureTime"] as? Double {
-                exifData["Exposure Time"] = formatExposureTime(exposureTime)
+                exifData.append(("Exposure Time", formatExposureTime(exposureTime)))
             }
             
             if let fNumber = exif["FNumber"] as? Double {
-                exifData["F-Number"] = "f/\(String(format: "%.1f", fNumber))"
+                exifData.append(("F-Number", "f/\(String(format: "%.1f", fNumber))"))
             }
             
             if let iso = exif["ISOSpeedRatings"] as? [Int] {
-                exifData["ISO"] = "\(iso.first ?? 0)"
+                exifData.append(("ISO", "\(iso.first ?? 0)"))
             }
             
             if let focalLength = exif["FocalLength"] as? Double {
-                exifData["Focal Length"] = "\(Int(focalLength))mm"
+                exifData.append(("Focal Length", "\(Int(focalLength))mm"))
             }
             
             if let lensModel = exif["LensModel"] as? String {
-                exifData["Lens"] = lensModel
+                exifData.append(("Lens", lensModel))
             }
             
             if let cameraMake = exif["Make"] as? String {
-                exifData["Camera Make"] = cameraMake
+                exifData.append(("Camera Make", cameraMake))
             }
             
             if let cameraModel = exif["Model"] as? String {
-                exifData["Camera Model"] = cameraModel
+                exifData.append(("Camera Model", cameraModel))
             }
         }
         
@@ -323,24 +326,28 @@ final class ViewerModel: ObservableObject {
         if let gps = properties["{GPS}"] as? [String: Any] {
             if let latitude = gps["Latitude"] as? Double,
                let longitude = gps["Longitude"] as? Double {
-                exifData["GPS Coordinates"] = "\(latitude), \(longitude)"
+                exifData.append(("GPS Coordinates", "\(latitude), \(longitude)"))
             }
         }
         
         // TIFF data
         if let tiff = properties["{TIFF}"] as? [String: Any] {
             if let make = tiff["Make"] as? String {
-                exifData["Make"] = make
+                exifData.append(("Make", make))
             }
             
             if let model = tiff["Model"] as? String {
-                exifData["Model"] = model
+                exifData.append(("Model", model))
             }
         }
         
-        // Add creation date at the end
+        // Add Modified and Created at the end
+        if let modificationDate = modificationDateString {
+            exifData.append(("Modified", modificationDate))
+        }
+        
         if let creationDate = creationDateString {
-            exifData["Created"] = creationDate
+            exifData.append(("Created", creationDate))
         }
         
         return exifData
@@ -965,7 +972,7 @@ extension Notification.Name {
 }
 
 struct InfoSidebar: View {
-    let exifData: [String: Any]
+    let exifData: [(String, Any)]
     let isLoading: Bool
     let onClose: () -> Void
     
@@ -1033,10 +1040,8 @@ struct InfoSidebar: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 40)
                     } else {
-                        ForEach(Array(exifData.keys.sorted()), id: \.self) { key in
-                            if let value = exifData[key] {
-                                InfoRow(title: key, value: "\(value)")
-                            }
+                        ForEach(Array(exifData.enumerated()), id: \.offset) { index, item in
+                            InfoRow(title: item.0, value: "\(item.1)")
                         }
                     }
                 }
@@ -1073,5 +1078,6 @@ struct InfoRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
 
 
