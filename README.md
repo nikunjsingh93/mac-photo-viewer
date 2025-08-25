@@ -2,7 +2,7 @@
 
 A beautiful, modern photo viewer for macOS with a focus on simplicity and performance.
 
-##Screenshots
+## Screenshots
 <img width="1470" height="956" alt="Screenshot 2025-08-25 at 10 40 47 AM" src="https://github.com/user-attachments/assets/3bb7e3dd-37e9-4b7f-9d2e-1ce815547452" />
 
 <img width="1470" height="864" alt="Screenshot 2025-08-25 at 10 41 02 AM" src="https://github.com/user-attachments/assets/4983c801-20c5-4cf4-b12c-2070bf3dd2e9" />
