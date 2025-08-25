@@ -6,6 +6,15 @@
 	CFBundleShortVersionString = "1.0";
 	LSMinimumSystemVersion = "13.0";
 	NSHighResolutionCapable = true;
+	CFBundleIconName = "AppIcon";
+	CFBundlePackageType = "APPL";
+	
+	<!-- Security and distribution settings -->
+	LSApplicationCategoryType = "public.app-category.graphics-design";
+	NSAppTransportSecurity = {
+		NSAllowsArbitraryLoads = false;
+	};
+	
 	CFBundleDocumentTypes = (
 		{
 			CFBundleTypeExtensions = (
@@ -55,5 +64,23 @@
 				);
 			};
 		}
+	);
+	
+	<!-- URL schemes for file opening -->
+	CFBundleURLTypes = (
+		{
+			CFBundleURLName = "com.glassphotoviewer.file";
+			CFBundleURLSchemes = (
+				glassphotos
+			);
+		}
+	);
+	
+	<!-- App capabilities -->
+	NSAppleEventsUsageDescription = "Glass Photos needs to access files to display images.";
+	
+	<!-- Required background modes -->
+	UIBackgroundModes = (
+		background-processing
 	);
 }

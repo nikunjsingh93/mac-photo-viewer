@@ -18,6 +18,7 @@ struct PhotoViewerApp: App {
             ContentView()
                 .onOpenURL { url in vm.handleOpen(urls: [url]) }
                 .environmentObject(vm)
+                .preferredColorScheme(.dark)
                 .onAppear {
                     print("App window appeared")
                     // Handle files opened with the app on launch
@@ -303,17 +304,31 @@ struct ContentView: View {
             
             if vm.files.isEmpty {
                 VStack(spacing: 20) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 60))
-                        .foregroundStyle(.blue)
+                    // Use app icon instead of blue logo
+                    Group {
+                        if let _ = NSImage(named: "AppIcon") {
+                            Image("AppIcon")
+                                .resizable()
+                                .frame(width: 80, height: 80)
+                                .cornerRadius(16)
+                        } else {
+                            // Fallback to system icon if AppIcon not found
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 60))
+                                .foregroundStyle(.blue)
+                        }
+                    }
                     
-                    Text("GLASS PHOTOS").font(.largeTitle).fontWeight(.light)
-                    Text("Welcome to your photo viewer!").font(.title3).foregroundStyle(.secondary)
+                    Text("Glass Photos")
+                        .font(.largeTitle)
+                        .fontWeight(.light)
+                        .foregroundStyle(.white)
                     
                     VStack(spacing: 12) {
                         Button("Open Folder…") { vm.pickFolder() }
                             .keyboardShortcut("o", modifiers: .command)
                             .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
                         
                         Text("Or drag and drop images here")
                             .font(.caption)
@@ -326,6 +341,7 @@ struct ContentView: View {
                 VStack(spacing: 16) {
                     ProgressView()
                         .scaleEffect(1.5)
+                        .foregroundStyle(.white)
                     Text("Loading photos...")
                         .font(.title3)
                         .foregroundStyle(.secondary)
@@ -336,6 +352,8 @@ struct ContentView: View {
         }
         .onAppear {
             print("ContentView appeared")
+            print("Files count: \(vm.files.count)")
+            print("Is loading: \(vm.isLoading)")
             vm.startKeyMonitor()
             
             // Listen for files opened with the app
@@ -345,6 +363,7 @@ struct ContentView: View {
                 queue: .main
             ) { notification in
                 if let urls = notification.object as? [URL] {
+                    print("Received files opened notification: \(urls.count) files")
                     vm.handleOpenedFiles(urls)
                 }
             }
@@ -523,8 +542,10 @@ struct Viewer: View {
                     Spacer()
                     Text("\(Int(scale * 100))%")
                         .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(.ultraThinMaterial)
                         .cornerRadius(8)
                         .padding(.trailing, 16)
@@ -584,7 +605,12 @@ struct TopHeader: View {
                 if totalCount > 1 {
                     Text("(\(currentIndex + 1)/\(totalCount))")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(6)
                 }
             }
             
@@ -595,13 +621,16 @@ struct TopHeader: View {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                     .font(.title2)
                     .foregroundStyle(.white)
+                    .padding(8)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(8)
             }
             .buttonStyle(.plain)
             .help("Enter Full Screen")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color.black)
+        .background(Color.black.opacity(0.8))
         .overlay(
             Rectangle()
                 .frame(height: 1)
@@ -616,14 +645,21 @@ struct HUD: View {
     var body: some View {
         HStack(spacing: 12) {
             Text("\(index)/\(total)")
-            Text(url.lastPathComponent).lineLimit(1).truncationMode(.middle)
+                .fontWeight(.medium)
+                .foregroundStyle(.white)
+            Text(url.lastPathComponent)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.white)
             Spacer()
             Text("← / → navigate • Space fit • F full screen")
+                .foregroundStyle(.secondary)
         }
         .font(.caption)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .padding(12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .padding(16)
     }
 }
 
