@@ -5,10 +5,9 @@ A beautiful, modern photo viewer for macOS with a focus on simplicity and perfor
 ## Features
 
 ### 🖼️ **Open with Photos by Default**
-- **Auto-opens Pictures folder** when the app launches
 - **File type associations** - double-click any image file to open it in the app
-- **Drag and drop support** - drop images or folders directly onto the app
-- **Recent folders** - quickly access previously opened folders
+- **Open folders** - quickly open folders
+- **Fullscreen mode**: Perfect for photo presentations or immersive viewing
 
 ### 🎯 **Easy Navigation**
 - **Keyboard shortcuts**:
@@ -17,13 +16,12 @@ A beautiful, modern photo viewer for macOS with a focus on simplicity and perfor
   - `F` - Toggle fullscreen
   - `Esc` - Exit fullscreen
   - `Cmd+O` - Open folder
-  - `Cmd+Shift+P` - Open Pictures folder
-  - `Cmd+Shift+R` - Open recent folders
 
 - **Mouse/Trackpad**:
   - **Swipe left/right** - Navigate between photos
-  - **Double-click** - Toggle fullscreen
-  - **Scroll** - Zoom in/out when not in fit mode
+  - **Double-click** - Zoom In/Zoom Out
+  - **Pinch** - Pinch to Zoom In/Zoom Out
+  - **Drag and Pan** - Move inside the zoomed photo
 
 ### 🚀 **Performance**
 - **Smart caching** - Images are cached for smooth navigation
@@ -37,26 +35,22 @@ A beautiful, modern photo viewer for macOS with a focus on simplicity and perfor
 ## How to Use
 
 ### Opening Photos
-1. **Launch the app** - It will automatically open your Pictures folder
-2. **Double-click any image file** - The app will open with that image
-3. **Drag and drop** - Drop images or folders onto the app window
+1. **Launch the app** - It will show button to open folder
+2. **Double-click any image file** - The app will open with that image (Set Default first in Get Info for .jpg etc)
 4. **Use the menu** - File → Open Folder to browse for photos
 
 ### Navigation
-- Use arrow keys or swipe gestures to navigate between photos
+- Use arrow keys to navigate between photos
 - Press Space to toggle between fit-to-window and actual size
-- Press F or double-click to enter/exit fullscreen mode
-
-### Recent Folders
-- The app remembers your recently opened folders
-- Use `Cmd+Shift+R` to quickly access recent folders
-- Up to 10 recent folders are saved
+- Press F to enter/exit fullscreen mode
 
 ## Installation
+- Download the file from recent releases section
+- Drag the file/copy to Applications folder
 
-1. Build the project in Xcode
-2. The app will be associated with image files automatically
-3. You can also drag the app to your Applications folder
+## Development
+1. Clone the project
+2. Build the project in Xcode
 
 ## System Requirements
 
