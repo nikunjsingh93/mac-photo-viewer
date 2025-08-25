@@ -306,8 +306,8 @@ struct ContentView: View {
                 VStack(spacing: 20) {
                     // Use app icon instead of blue logo
                     Group {
-                        if let _ = NSImage(named: "AppIcon") {
-                            Image("AppIcon")
+                        if let appIcon = NSImage(named: "AppIcon") {
+                            Image(nsImage: appIcon)
                                 .resizable()
                                 .frame(width: 80, height: 80)
                                 .cornerRadius(16)
