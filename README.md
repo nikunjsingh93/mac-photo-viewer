@@ -53,7 +53,7 @@ A beautiful, modern photo viewer for macOS with a focus on simplicity and perfor
 ## Installation
 
 ### Quick Download
-**[Download Glass Photo Viewer v1.0.0](Glass_Photo_Viewer-1.0.0.dmg)** - Drag to Applications folder to install
+<a href="Glass_Photo_Viewer-1.0.0.dmg" download>**Download Glass Photo Viewer v1.0.0**</a> - Drag to Applications folder to install
 
 ### From GitHub Releases
 - Download the latest DMG from the [releases section](https://github.com/yourusername/glass-photo-viewer/releases)
