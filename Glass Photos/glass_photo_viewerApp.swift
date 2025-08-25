@@ -258,6 +258,7 @@ final class ViewerModel: ObservableObject {
         }
         
         var exifData: [String: Any] = [:]
+        var creationDateString: String?
         
         // Basic file info
         if let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
@@ -265,7 +266,7 @@ final class ViewerModel: ObservableObject {
         }
         
         if let creationDate = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate {
-            exifData["Created"] = formatDate(creationDate)
+            creationDateString = formatDate(creationDate)
         }
         
         if let modificationDate = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate {
@@ -335,6 +336,11 @@ final class ViewerModel: ObservableObject {
             if let model = tiff["Model"] as? String {
                 exifData["Model"] = model
             }
+        }
+        
+        // Add creation date at the end
+        if let creationDate = creationDateString {
+            exifData["Created"] = creationDate
         }
         
         return exifData
@@ -523,10 +529,6 @@ struct ContentView: View {
                             .keyboardShortcut("o", modifiers: .command)
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
-                        
-                        Text("Or drag and drop images here")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: 400)
@@ -982,6 +984,9 @@ struct InfoSidebar: View {
                     Image(systemName: "xmark")
                         .font(.title3)
                         .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
             }
