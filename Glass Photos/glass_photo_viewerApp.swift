@@ -7,6 +7,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import ImageIO
 
 @main
 struct PhotoViewerApp: App {
@@ -54,10 +55,14 @@ final class ViewerModel: ObservableObject {
     @Published var index = 0
     @Published var fitToWindow = true
     @Published var isLoading = false
+    @Published var showInfoSidebar = false
     
     private var keyMonitor: Any?
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
     private let cache = NSCache<NSURL, NSImage>()
+    
+    // EXIF data for current image
+    @Published var currentExifData: [String: Any] = [:]
     
     // Handle files opened with the app
     func handleOpenedFiles(_ urls: [URL]) {
@@ -203,6 +208,7 @@ final class ViewerModel: ObservableObject {
         guard !files.isEmpty else { return }
         index = (i % files.count + files.count) % files.count
         preloadNeighbors()
+        loadExifData()
     }
     func next() { show(index + 1) }
     func prev() { show(index - 1) }
@@ -211,6 +217,164 @@ final class ViewerModel: ObservableObject {
         NSApp.keyWindow?.toggleFullScreen(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             NotificationCenter.default.post(name: .fullScreenChanged, object: nil)
+        }
+    }
+    
+    // EXIF Data handling
+    func loadExifData() {
+        guard !files.isEmpty, let currentURL = files[safe: index] else {
+            currentExifData = [:]
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let exifData = self.extractExifData(from: currentURL)
+            DispatchQueue.main.async {
+                self.currentExifData = exifData
+            }
+        }
+    }
+    
+    private func extractExifData(from url: URL) -> [String: Any] {
+        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            return [:]
+        }
+        
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any] else {
+            return [:]
+        }
+        
+        var exifData: [String: Any] = [:]
+        
+        // Basic file info
+        if let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+            exifData["File Size"] = formatFileSize(fileSize)
+        }
+        
+        if let creationDate = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate {
+            exifData["Created"] = formatDate(creationDate)
+        }
+        
+        if let modificationDate = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate {
+            exifData["Modified"] = formatDate(modificationDate)
+        }
+        
+        // Image dimensions
+        if let width = properties["PixelWidth"] as? Int,
+           let height = properties["PixelHeight"] as? Int {
+            exifData["Dimensions"] = "\(width) × \(height)"
+        }
+        
+        // Color space
+        if let colorSpace = properties["ColorSpace"] as? String {
+            exifData["Color Space"] = colorSpace
+        }
+        
+        // EXIF data
+        if let exif = properties["{Exif}"] as? [String: Any] {
+            if let dateTimeOriginal = exif["DateTimeOriginal"] as? String {
+                exifData["Date Taken"] = formatExifDate(dateTimeOriginal)
+            }
+            
+            if let exposureTime = exif["ExposureTime"] as? Double {
+                exifData["Exposure Time"] = formatExposureTime(exposureTime)
+            }
+            
+            if let fNumber = exif["FNumber"] as? Double {
+                exifData["F-Number"] = "f/\(String(format: "%.1f", fNumber))"
+            }
+            
+            if let iso = exif["ISOSpeedRatings"] as? [Int] {
+                exifData["ISO"] = "\(iso.first ?? 0)"
+            }
+            
+            if let focalLength = exif["FocalLength"] as? Double {
+                exifData["Focal Length"] = "\(Int(focalLength))mm"
+            }
+            
+            if let lensModel = exif["LensModel"] as? String {
+                exifData["Lens"] = lensModel
+            }
+            
+            if let cameraMake = exif["Make"] as? String {
+                exifData["Camera Make"] = cameraMake
+            }
+            
+            if let cameraModel = exif["Model"] as? String {
+                exifData["Camera Model"] = cameraModel
+            }
+        }
+        
+        // GPS data
+        if let gps = properties["{GPS}"] as? [String: Any] {
+            if let latitude = gps["Latitude"] as? Double,
+               let longitude = gps["Longitude"] as? Double {
+                exifData["GPS Coordinates"] = "\(latitude), \(longitude)"
+            }
+        }
+        
+        // TIFF data
+        if let tiff = properties["{TIFF}"] as? [String: Any] {
+            if let make = tiff["Make"] as? String {
+                exifData["Make"] = make
+            }
+            
+            if let model = tiff["Model"] as? String {
+                exifData["Model"] = model
+            }
+        }
+        
+        return exifData
+    }
+    
+    private func formatFileSize(_ bytes: Int) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func formatExifDate(_ dateString: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        if let date = formatter.date(from: dateString) {
+            return formatDate(date)
+        }
+        return dateString
+    }
+    
+    private func formatExposureTime(_ seconds: Double) -> String {
+        if seconds >= 1 {
+            return String(format: "%.1fs", seconds)
+        } else {
+            return "1/\(Int(1/seconds))s"
+        }
+    }
+    
+    // Share functionality
+    func shareCurrentImage() {
+        guard !files.isEmpty, let currentURL = files[safe: index] else { return }
+        
+        let sharingPicker = NSSharingServicePicker(items: [currentURL])
+        
+        if let window = NSApp.keyWindow {
+            // Calculate center position of the window
+            let windowFrame = window.frame
+            let centerRect = CGRect(
+                x: windowFrame.width / 2 - 100,
+                y: windowFrame.height / 2 - 100,
+                width: 200,
+                height: 200
+            )
+            
+            sharingPicker.show(relativeTo: centerRect, of: window.contentView!, preferredEdge: NSRectEdge.minY)
         }
     }
 
@@ -387,89 +551,32 @@ struct Viewer: View {
     @State private var lastOffset: CGSize = .zero
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Top header (only visible when not in fullscreen)
-            if !isFullScreen {
-                TopHeader(
-                    imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
-                    currentIndex: vm.index,
-                    totalCount: vm.files.count,
-                    onFullScreen: {
-                        isFullScreen = true
-                        vm.toggleFullScreen()
-                    }
-                )
-            }
-            
-            // Main image view
-            GeometryReader { geo in
-                if let url = vm.files[safe: vm.index], let nsimg = vm.image(for: url) {
-                    let imageView = Image(nsImage: nsimg).interpolation(.high).antialiased(true)
-                    Group {
-                        if vm.fitToWindow {
-                            imageView.resizable().scaledToFit()
-                                .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
-                                .scaleEffect(scale)
-                                .offset(offset)
-                                .clipped() // Prevent image from extending beyond bounds
-                                .gesture(
-                                    SimultaneousGesture(
-                                        MagnificationGesture()
-                                            .onChanged { value in
-                                                let delta = value / lastScale
-                                                lastScale = value
-                                                scale = min(max(scale * delta, 0.5), 5.0)
-                                            }
-                                            .onEnded { _ in
-                                                lastScale = 1.0
-                                                // Snap to bounds if zoomed out too much
-                                                if scale < 1.0 {
-                                                    withAnimation(.easeOut(duration: 0.3)) {
-                                                        scale = 1.0
-                                                        offset = .zero
-                                                    }
-                                                }
-                                            },
-                                        DragGesture()
-                                            .onChanged { value in
-                                                if scale > 1.0 {
-                                                    offset = CGSize(
-                                                        width: lastOffset.width + value.translation.width,
-                                                        height: lastOffset.height + value.translation.height
-                                                    )
-                                                }
-                                            }
-                                            .onEnded { _ in
-                                                lastOffset = offset
-                                                // Constrain panning to image bounds
-                                                constrainOffsetToBounds(imageSize: nsimg.size, viewSize: geo.size)
-                                            }
-                                    )
-                                )
-                                .onTapGesture(count: 2) { 
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        if scale > 1.0 {
-                                            scale = 1.0
-                                            offset = .zero
-                                            lastOffset = .zero
-                                        } else {
-                                            scale = 2.0
-                                        }
-                                    }
-                                }
-                                .onTapGesture(count: 1) {
-                                    // Single tap to reset zoom when zoomed in
-                                    if scale > 1.0 {
-                                        withAnimation(.easeInOut(duration: 0.3)) {
-                                            scale = 1.0
-                                            offset = .zero
-                                            lastOffset = .zero
-                                        }
-                                    }
-                                }
-                        } else {
-                            ScrollView([.horizontal, .vertical]) {
-                                imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
+        HStack(spacing: 0) {
+            // Main content area
+            VStack(spacing: 0) {
+                // Top header (only visible when not in fullscreen)
+                if !isFullScreen {
+                    TopHeader(
+                        imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
+                        currentIndex: vm.index,
+                        totalCount: vm.files.count,
+                        onFullScreen: {
+                            isFullScreen = true
+                            vm.toggleFullScreen()
+                        },
+                        onInfoToggle: { vm.showInfoSidebar.toggle() },
+                        onShare: { vm.shareCurrentImage() }
+                    )
+                }
+                
+                // Main image view
+                GeometryReader { geo in
+                    if let url = vm.files[safe: vm.index], let nsimg = vm.image(for: url) {
+                        let imageView = Image(nsImage: nsimg).interpolation(.high).antialiased(true)
+                        Group {
+                            if vm.fitToWindow {
+                                imageView.resizable().scaledToFit()
+                                    .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
                                     .scaleEffect(scale)
                                     .offset(offset)
                                     .clipped() // Prevent image from extending beyond bounds
@@ -483,6 +590,13 @@ struct Viewer: View {
                                                 }
                                                 .onEnded { _ in
                                                     lastScale = 1.0
+                                                    // Snap to bounds if zoomed out too much
+                                                    if scale < 1.0 {
+                                                        withAnimation(.easeOut(duration: 0.3)) {
+                                                            scale = 1.0
+                                                            offset = .zero
+                                                        }
+                                                    }
                                                 },
                                             DragGesture()
                                                 .onChanged { value in
@@ -495,6 +609,8 @@ struct Viewer: View {
                                                 }
                                                 .onEnded { _ in
                                                     lastOffset = offset
+                                                    // Constrain panning to image bounds
+                                                    constrainOffsetToBounds(imageSize: nsimg.size, viewSize: geo.size)
                                                 }
                                         )
                                     )
@@ -519,38 +635,101 @@ struct Viewer: View {
                                             }
                                         }
                                     }
+                            } else {
+                                ScrollView([.horizontal, .vertical]) {
+                                    imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
+                                        .scaleEffect(scale)
+                                        .offset(offset)
+                                        .clipped() // Prevent image from extending beyond bounds
+                                        .gesture(
+                                            SimultaneousGesture(
+                                                MagnificationGesture()
+                                                    .onChanged { value in
+                                                        let delta = value / lastScale
+                                                        lastScale = value
+                                                        scale = min(max(scale * delta, 0.5), 5.0)
+                                                    }
+                                                    .onEnded { _ in
+                                                        lastScale = 1.0
+                                                    },
+                                                DragGesture()
+                                                    .onChanged { value in
+                                                        if scale > 1.0 {
+                                                            offset = CGSize(
+                                                                width: lastOffset.width + value.translation.width,
+                                                                height: lastOffset.height + value.translation.height
+                                                            )
+                                                        }
+                                                    }
+                                                    .onEnded { _ in
+                                                        lastOffset = offset
+                                                    }
+                                            )
+                                        )
+                                        .onTapGesture(count: 2) { 
+                                            withAnimation(.easeInOut(duration: 0.3)) {
+                                                if scale > 1.0 {
+                                                    scale = 1.0
+                                                    offset = .zero
+                                                    lastOffset = .zero
+                                                } else {
+                                                    scale = 2.0
+                                                }
+                                            }
+                                        }
+                                        .onTapGesture(count: 1) {
+                                            // Single tap to reset zoom when zoomed in
+                                            if scale > 1.0 {
+                                                withAnimation(.easeInOut(duration: 0.3)) {
+                                                    scale = 1.0
+                                                    offset = .zero
+                                                    lastOffset = .zero
+                                                }
+                                            }
+                                        }
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 20).onEnded { value in
+                            // Only handle navigation gestures when not zoomed in
+                            if scale <= 1.0 {
+                                if value.translation.width < 0 { vm.next() }
+                                if value.translation.width > 0 { vm.prev() }
+                            }
+                        })
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .contentShape(Rectangle())
-                    .gesture(DragGesture(minimumDistance: 20).onEnded { value in
-                        // Only handle navigation gestures when not zoomed in
-                        if scale <= 1.0 {
-                            if value.translation.width < 0 { vm.next() }
-                            if value.translation.width > 0 { vm.prev() }
-                        }
-                    })
-                } else {
-                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                
+                // Zoom indicator (only show when zoomed in)
+                if scale > 1.0 {
+                    HStack {
+                        Spacer()
+                        Text("\(Int(scale * 100))%")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(8)
+                            .padding(.trailing, 16)
+                            .padding(.bottom, 16)
+                    }
                 }
             }
             
-            // Zoom indicator (only show when zoomed in)
-            if scale > 1.0 {
-                HStack {
-                    Spacer()
-                    Text("\(Int(scale * 100))%")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(8)
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 16)
-                }
+            // Info sidebar
+            if vm.showInfoSidebar {
+                InfoSidebar(
+                    exifData: vm.currentExifData,
+                    onClose: { vm.showInfoSidebar = false }
+                )
+                .frame(width: 300)
+                .transition(.move(edge: .trailing))
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .fullScreenChanged)) { _ in
@@ -565,6 +744,7 @@ struct Viewer: View {
                 lastScale = 1.0
             }
         }
+
     }
     
     private func constrainOffsetToBounds(imageSize: NSSize, viewSize: CGSize) {
@@ -591,6 +771,8 @@ struct TopHeader: View {
     let currentIndex: Int
     let totalCount: Int
     let onFullScreen: () -> Void
+    let onInfoToggle: () -> Void
+    let onShare: () -> Void
     
     var body: some View {
         HStack {
@@ -616,17 +798,44 @@ struct TopHeader: View {
             
             Spacer()
             
-            // Fullscreen button on the right
-            Button(action: onFullScreen) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .padding(8)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(8)
+            // Action buttons on the right
+            HStack(spacing: 8) {
+                // Info button
+                Button(action: onInfoToggle) {
+                    Image(systemName: "info.circle")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help("Show Image Info")
+                
+                // Share button
+                Button(action: onShare) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help("Share Image")
+                
+                // Fullscreen button
+                Button(action: onFullScreen) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help("Enter Full Screen")
             }
-            .buttonStyle(.plain)
-            .help("Enter Full Screen")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -721,3 +930,99 @@ extension Notification.Name {
 #Preview {
     ContentView().environmentObject(ViewerModel())
 }
+
+struct InfoSidebar: View {
+    let exifData: [String: Any]
+    let onClose: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("Image Info")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                
+                Spacer()
+                
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.black.opacity(0.8))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(.separator),
+                alignment: .bottom
+            )
+            
+            // Content
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    if exifData.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            
+                            Text("No metadata available")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            
+                            Text("This image doesn't contain EXIF data or metadata information.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                    } else {
+                        ForEach(Array(exifData.keys.sorted()), id: \.self) { key in
+                            if let value = exifData[key] {
+                                InfoRow(title: key, value: "\(value)")
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .background(Color.black)
+        .overlay(
+            Rectangle()
+                .frame(width: 1)
+                .foregroundStyle(.separator),
+            alignment: .leading
+        )
+    }
+}
+
+struct InfoRow: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            
+            Text(value)
+                .font(.body)
+                .foregroundStyle(.white)
+                .lineLimit(nil)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+
